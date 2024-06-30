@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- By IDX -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Lines</title>
+</head>
+
+<body>
+    <canvas id="glCanvas" width="640" height="480"></canvas>
+</body>
+
+</html>
+
+<script>
+
+    // Example usage
+    const x0 = 0;
+    const y0 = 0;
+    const x1 = 5;
+    const y1 = 3;
+    var vertexCount;
+
+    function DDA(x0, y0, x1, y1) {
+        let points = [];
+        let maxv = (Math.max(Math.abs(x0), Math.abs(x1), Math.abs(y0), Math.abs(y1)));
+        maxv += 0.5;
+
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const steps = Math.max(Math.abs(dx), Math.abs(dy));
+
+        const xIncrement = dx / steps;
+        const yIncrement = dy / steps;
+
+        vertexCount = steps;
+
+        let x = x0;
+        let y = y0;
+
+        points.push(x, y);
+        for (let i = 0; i < steps; i++) {
+            x += xIncrement;
+            y += yIncrement;
+            points.push(Math.round(x) / maxv, Math.round(y) / maxv);
+            points.push(Math.round(x) / maxv, Math.round(y) / maxv);
+        }
+        points.pop();
+        points.pop();
+
+        return points;
+    }
+
+
+    function main() {
+        const canvas = document.getElementById('glCanvas');
+        const gl = canvas.getContext('webgl');
+
+        if (!gl) {
+            console.error("WebGL not supported. Falling back on experimental-webgl.");
+            gl = canvas.getContext('experimental-webgl');
+        }
+
+        if (!gl) {
+            alert("Your browser does not support WebGL.");
+            return;
+        }
+
+        // Vertex shader program
+        const vsSource = `
+        attribute vec4 aVertexPosition;
+        void main(void) {
+            gl_Position = aVertexPosition;
+            gl_PointSize = 10.0;
+        }
+    `;
+
+        // Fragment shader program
+        const fsSource = `
+        void main(void) {
+            gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+        }
+    `;
+
+        // Initialize shaders
+        const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+        const programInfo = {
+            program: shaderProgram,
+            attribLocations: {
+                vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+            }
+        };
+
+        // Set up the positions for the lines
+        const positions = DDA(x0, y0, x1, y1);
+        console.log(positions);
+
+        // Create a buffer for the positions
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+        drawScene(gl, programInfo, positionBuffer);
+    }
+
+    function initShaderProgram(gl, vsSource, fsSource) {
+        const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+        const shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            console.error('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
+            return null;
+        }
+
+        return shaderProgram;
+    }
+
+    function loadShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+        }
+
+        return shader;
+    }
+
+    function drawScene(gl, programInfo, positionBuffer) {
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+        const numComponents = 2;  // pull out 2 values per iteration
+        const type = gl.FLOAT;    // the data in the buffer is 32bit floats
+        const normalize = false;  // don't normalize
+        const stride = 0;         // how many bytes to get from one set of values to the next
+        const offset = 0;         // how many bytes inside the buffer to start from
+        gl.vertexAttribPointer(
+            programInfo.attribLocations.vertexPosition,
+            numComponents,
+            type,
+            normalize,
+            stride,
+            offset);
+        gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+
+        gl.useProgram(programInfo.program);
+
+        {
+            console.log("a " + vertexCount);
+            const offset = 0;
+            // gl.drawArrays(gl.LINE_STRIP, 0, 2);
+            gl.drawArrays(gl.LINE_STRIP, 0, vertexCount*2 + 0);
+
+            
+        }
+    }
+
+    window.onload = main;
+
+
+</script>
